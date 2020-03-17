@@ -3,15 +3,13 @@ package com.moveit.synccamera;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
-import android.util.Range;
 import android.widget.ImageView;
 
-public class MainActivity extends AppCompatActivity implements DepthBitmapObserver, ColorBitmapObserver {
+public class MainActivity extends AppCompatActivity implements BitmapObserver {
     private ImageView mDepthImageView;
     private ImageView mColorImageView;
 
@@ -19,31 +17,30 @@ public class MainActivity extends AppCompatActivity implements DepthBitmapObserv
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 0);
+        }
+
         mDepthImageView = findViewById(R.id.depthImageView);
         mColorImageView = findViewById(R.id.colorImageView);
 
-        DepthCamera depthCamera = new DepthCamera(this);
-        ColorCamera colorCamera = new ColorCamera(this);
+        DepthCamera depthCamera = new DepthCamera(this, DepthCamera.DEPTH_640_480, 10);
+        ColorCamera colorCamera = new ColorCamera(this, ColorCamera.RES_640x480, 10);
 
-        if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 0);
+        colorCamera.attachObserver(this);
+        colorCamera.openCamera();
+
+        depthCamera.attachObserver(this);
+        depthCamera.openCamera();
+    }
+
+    @Override
+    public void onBitmapAvailable(Bitmap bitmap, BitmapBroadcastContext context) {
+        if (context.getDataType() == BitmapDataType.DEPTH) {
+            mDepthImageView.setImageBitmap(bitmap);
+        } else if (context.getDataType() == BitmapDataType.COLOR) {
+            mColorImageView.setImageBitmap(bitmap);
         }
-        colorCamera.addObserver(this);
-        colorCamera.setColorCameraCallback(new Range<Integer>(15,60), ColorCamera.RES_WIDE_640x480, 10);
-        colorCamera.openColorCamera();
-
-        depthCamera.addObserver(this);
-        depthCamera.setDepthCameraCallback(new Range<Integer>(15,60), DepthCamera.DEPTH_640_480, 10);
-        depthCamera.openDepthCamera();
-    }
-
-    @Override
-    public void onDepthBitmapAvailable(Bitmap bitmap) {
-        mDepthImageView.setImageBitmap(bitmap);
-    }
-
-    @Override
-    public void onColorBitmapAvailable(Bitmap bitmap) {
-        mColorImageView.setImageBitmap(bitmap);
     }
 }
