@@ -2,5 +2,6 @@ package com.moveit.synccamera;
 
 public enum BitmapDataType {
     DEPTH,
-    COLOR
+    COLOR,
+    DEPTH_KINECT
 }
