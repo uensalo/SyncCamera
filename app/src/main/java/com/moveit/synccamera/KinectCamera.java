@@ -2,14 +2,18 @@ package com.moveit.synccamera;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraMetadata;
 import android.media.ImageReader;
+import android.util.Half;
 import android.util.Log;
 
 import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.nio.LongBuffer;
 import java.nio.ShortBuffer;
 
 public class KinectCamera extends AbstractCamera {
@@ -33,16 +37,23 @@ public class KinectCamera extends AbstractCamera {
 
     @Override
     public Bitmap decodeSensorData(ByteBuffer buffer) {
+        /*
+            Android does not provide any utilities to encode a bitmap with a single channel with 16 bits.
+         */
         ShortBuffer shortBuffer = buffer.asShortBuffer();
-        short[] depthBitmapPixels = new short[mCameraRes[mSizeIndex].getWidth() * mCameraRes[mSizeIndex].getHeight()];
+        int[] depthBitmapPixels = new int[mCameraRes[mSizeIndex].getWidth() * mCameraRes[mSizeIndex].getHeight()];
         for (int i = 0; i < mCameraRes[mSizeIndex].getWidth() * mCameraRes[mSizeIndex].getHeight(); i++) {
-            short sample = shortBuffer.get(i);
+            short sample = shortBuffer.get();
             short depthRange = (short) (((sample & 0x1FFF) << 3) | sDeviceID);
-            depthBitmapPixels[i] = depthRange;
+            int lower = (int) (depthRange & 0x00FF);
+            int upper = (int) (depthRange & 0xFF00) >> 8;
+            int color = Color.argb(255, upper, lower, 0);
+            depthBitmapPixels[i] = color;
         }
-        ShortBuffer finalBuffer = ShortBuffer.wrap(depthBitmapPixels);
-        Bitmap bmp = Bitmap.createBitmap(mCameraRes[mSizeIndex].getWidth(), mCameraRes[mSizeIndex].getHeight(), Bitmap.Config.RGB_565);
+        IntBuffer finalBuffer = IntBuffer.wrap(depthBitmapPixels);
+        Bitmap bmp = Bitmap.createBitmap(mCameraRes[mSizeIndex].getWidth(), mCameraRes[mSizeIndex].getHeight(), Bitmap.Config.ARGB_8888);
         bmp.copyPixelsFromBuffer(finalBuffer);
+        Log.w(TAG, "" + bmp.getColor(320, 240));
         return bmp;
     }
 

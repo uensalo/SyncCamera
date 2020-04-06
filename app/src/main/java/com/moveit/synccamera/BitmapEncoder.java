@@ -6,7 +6,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 public class BitmapEncoder {
-    private BitmapEncoder mInstance;
+    private static BitmapEncoder mInstance;
 
     private static Bitmap.CompressFormat mCompressFormat;
     private static int mCompressionFactor;
@@ -14,7 +14,7 @@ public class BitmapEncoder {
     private BitmapEncoder() {
     }
 
-    public BitmapEncoder instance() {
+    public static synchronized BitmapEncoder instance() {
         if (mInstance == null) {
             mInstance = new BitmapEncoder();
         }
@@ -33,10 +33,10 @@ public class BitmapEncoder {
         return mInstance;
     }
 
-    public static synchronized String encode(Bitmap bmp, String fileName) {
-        try (FileOutputStream out = new FileOutputStream(fileName)) {
+    public synchronized String encode(Bitmap bmp, String filePath) {
+        try (FileOutputStream out = new FileOutputStream(filePath)) {
             bmp.compress(mCompressFormat, mCompressionFactor, out);
-            return fileName;
+            return filePath;
         } catch (IOException e) {
             e.printStackTrace();
         }
