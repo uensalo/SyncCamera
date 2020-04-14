@@ -16,23 +16,7 @@ import android.widget.Toast;
 
 import java.io.File;
 
-public class MainActivity extends AppCompatActivity implements BitmapObserver {
-    /*
-        This is the actual app which queries cameras for sensor information and then renders the bitmaps
-        on to the screen of the mobile device. Usage is simple: The app implements BitmapObserver, then
-        it attaches itself to the logical camera models. onBitmapAvailable() is executed whenever a
-        sensor notifies its observers, in this case the app itself. The app then instructs the view to
-        update itself according to the broadcast bitmap.
-
-        TODO: It is now possible to save an image to the storage using the following utilities:
-            - upon receiving a bitmap, request an instance of the BitmapEncoder
-            - encode the bitmap into an image file (.jpeg recommended)
-            - create a BitmapMetadata Object, and set the relevant fields (camera parameters, etc.)
-              (path of the file on the device should be returned from the encode method of the
-               BitmapEncoder, required by the constructor of the BitmapMetadata object)
-            - call saveInstance() on the BitmapMetadata to attach the metadata to the image file.
-     */
-
+public class MainActivity extends AppCompatActivity implements BitmapObserver, ProgressObserver {
     private ImageView mDepthImageView;
     private ImageView mColorImageView;
 
@@ -45,6 +29,8 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver {
     private int mCurrentVideoIndex;
 
     private RGBDCaptureContext mCaptureContext;
+
+    private boolean saving;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,6 +45,7 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 0);
         }
 
+        saving = false;
         mAppPath = getExternalFilesDir(null).getAbsolutePath();
         mVideoPath = mAppPath + "/videos";
         File[] filesAppDir = (new File(mAppPath)).listFiles();
@@ -97,23 +84,28 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver {
         mDepthImageView = findViewById(R.id.depthImageView);
         mColorImageView = findViewById(R.id.colorImageView);
 
+
         mCaptureButton = findViewById(R.id.captureButton);
+        mCaptureButton.setText("Tap to start capturing");
         mCaptureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 boolean captureState = mCaptureContext.captureState();
                 if (captureState) {
+                    mCaptureButton.setEnabled(false);
                     mCaptureContext.stopCapture();
-                    Toast.makeText(getApplicationContext(), "Capture Ended", Toast.LENGTH_SHORT);
+                    saving = true;
+                    Toast.makeText(getApplicationContext(), "Capture ended", Toast.LENGTH_SHORT);
                 } else {
-                    mCaptureContext.startCapture();
+                    mCaptureContext.startCapture(mCurrentVideoIndex);
+                    mCaptureButton.setText("Capturing, tap to save.");
                     Toast.makeText(getApplicationContext(), "Capture Started", Toast.LENGTH_SHORT);
                 }
             }
         });
 
-        KinectCamera kinectCamera = new KinectCamera(this, DepthCamera.DEPTH_640_480, 10);
-        ColorCamera colorCamera = new ColorCamera(this, ColorCamera.RES_640x480, 10);
+        KinectCamera kinectCamera = new KinectCamera(this, DepthCamera.DEPTH_640_480, 2);
+        ColorCamera colorCamera = new ColorCamera(this, ColorCamera.RES_640x480, 2);
 
         colorCamera.attachObserver(this);
         colorCamera.openCamera();
@@ -121,16 +113,43 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver {
         kinectCamera.attachObserver(this);
         kinectCamera.openCamera();
 
-        mCaptureContext = new RGBDCaptureContext(mVideoPath, mCurrentVideoIndex, Bitmap.CompressFormat.PNG, Bitmap.CompressFormat.PNG, 50);
+        Log.w("APP", "Color Camera: Horizontal Angle: " + colorCamera.getCameraFOV()[0] + ", Vertical Angle: " + colorCamera.getCameraFOV()[1]);
+        Log.w("APP", "Color camera id: " + colorCamera.getCameraID());
+        Log.w("APP", "Kinect Camera: Horizontal Angle: " + kinectCamera.getCameraFOV()[0] + ", Vertical Angle: " + kinectCamera.getCameraFOV()[1]);
+        Log.w("APP", "Kinect Camera id: " + kinectCamera.getCameraID());
+
+        for (float f : colorCamera.mIntrinsicCameraParameters) {
+            Log.w("APP", "Color Camera camera parameter: " + f);
+        }
+
+        for (float f : kinectCamera.mIntrinsicCameraParameters) {
+            Log.w("APP", "Kinect Camera camera parameter: " + f);
+        }
+
+        mCaptureContext = new RGBDCaptureContext(mVideoPath, Bitmap.CompressFormat.PNG, Bitmap.CompressFormat.PNG, 50, this);
+        mCaptureContext.addObserver(this);
     }
 
     @Override
     public void onBitmapAvailable(Bitmap bitmap, BitmapBroadcastContext context) {
         if (context.getDataType() == BitmapDataType.DEPTH || context.getDataType() == BitmapDataType.DEPTH_KINECT) {
+            if (saving) {
+                String colorProgress = (int) (mCaptureContext.colorEncodingProgress() * 100) + "%";
+                String depthProgress = (int) (mCaptureContext.depthEncodingProgress() * 100) + "%";
+                mCaptureButton.setText("Depth: " + depthProgress + ", Color:" + colorProgress);
+            }
             mDepthImageView.setImageBitmap(bitmap);
             mCaptureContext.insertFrame(((BitmapDrawable) mColorImageView.getDrawable()).getBitmap(), ((BitmapDrawable) mDepthImageView.getDrawable()).getBitmap());
         } else if (context.getDataType() == BitmapDataType.COLOR) {
             mColorImageView.setImageBitmap(bitmap);
         }
+    }
+
+    @Override
+    public void onComplete(int jobID) {
+        saving = false;
+        mCurrentVideoIndex++;
+        mCaptureButton.setEnabled(true);
+        mCaptureButton.setText("Tap to start capturing");
     }
 }

@@ -4,16 +4,18 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
+import android.graphics.Rect;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraMetadata;
+import android.hardware.camera2.CaptureRequest;
 import android.media.ImageReader;
 import android.util.Half;
 import android.util.Log;
+import android.util.Range;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.nio.LongBuffer;
 import java.nio.ShortBuffer;
 
 public class KinectCamera extends AbstractCamera {
@@ -53,8 +55,16 @@ public class KinectCamera extends AbstractCamera {
         IntBuffer finalBuffer = IntBuffer.wrap(depthBitmapPixels);
         Bitmap bmp = Bitmap.createBitmap(mCameraRes[mSizeIndex].getWidth(), mCameraRes[mSizeIndex].getHeight(), Bitmap.Config.ARGB_8888);
         bmp.copyPixelsFromBuffer(finalBuffer);
-        Log.w(TAG, "" + bmp.getColor(320, 240));
         return bmp;
+    }
+
+    @Override
+    public void setCaptureRequestParameters() {
+        mCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, 0);
+        mCaptureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<Integer>(30, 30));
+        mCaptureRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, CameraMetadata.NOISE_REDUCTION_MODE_HIGH_QUALITY);
+        mCaptureRequestBuilder.set(CaptureRequest.LENS_FOCAL_LENGTH, mFocalLengths[0]);
+        mCaptureRequestBuilder.set(CaptureRequest.DISTORTION_CORRECTION_MODE, CaptureRequest.DISTORTION_CORRECTION_MODE_HIGH_QUALITY);
     }
 
     public KinectCamera(Context context, int sizeIndex, int maxImages) {
@@ -75,7 +85,12 @@ public class KinectCamera extends AbstractCamera {
                     mCameraID = cameraID;
                     mCameraRes = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.DEPTH16);
                     assert mCameraRes != null;
+                    mFocalLengths = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+                    mApertureSizes = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES);
+                    mIntrinsicCameraParameters = cameraCharacteristics.get(CameraCharacteristics.LENS_INTRINSIC_CALIBRATION);
+                    mCameraActiveArraySize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
                     mImageReader = ImageReader.newInstance(mCameraRes[mSizeIndex].getWidth(), mCameraRes[mSizeIndex].getHeight(), ImageFormat.DEPTH16, mMaxImages);
+                    break;
                 }
             }
         } catch (CameraAccessException e) {

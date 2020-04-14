@@ -4,10 +4,12 @@ import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
+import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.media.Image;
 import android.media.ImageReader;
@@ -16,6 +18,7 @@ import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Range;
 import android.util.Size;
+import android.util.SizeF;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
@@ -56,6 +59,13 @@ public abstract class AbstractCamera implements BitmapProducer {
     protected Range<Integer> mFps;
 
     protected int mSensorFormat;
+
+    protected float[] mFocalLengths;
+    protected float[] mApertureSizes;
+    protected float[] mIntrinsicCameraParameters;
+    protected Rect mCameraActiveArraySize;
+
+
 
     public AbstractCamera(Context context, Range<Integer> fps, int sizeIndex, int maxImages) {
         mContext = context;
@@ -134,7 +144,37 @@ public abstract class AbstractCamera implements BitmapProducer {
         }
     }
 
+    public float[] getCameraFOV() {
+        try {
+            CameraCharacteristics characteristics = getCameraManager().getCameraCharacteristics(mCameraID);
+            float[] foci = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+            float minFocus = foci[0];
+            for (float focus : foci) {
+                if (focus < minFocus) {
+                    focus = minFocus;
+                }
+            }
+            SizeF size = characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+            float w = size.getWidth();
+            float h = size.getHeight();
+
+            float horizontalAngle = (float) (2 * Math.atan(w / (minFocus * 2)));
+            float verticalAngle = (float) (2 * Math.atan(h / (minFocus * 2)));
+
+            float[] retVal = new float[2];
+            retVal[0] = horizontalAngle;
+            retVal[1] = verticalAngle;
+            return retVal;
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     abstract public Bitmap decodeSensorData(ByteBuffer buffer);
+
+    abstract public void setCaptureRequestParameters();
 
     private void setCameraCallback() {
         mImageAvailableListener = new ImageReader.OnImageAvailableListener() {
@@ -155,14 +195,12 @@ public abstract class AbstractCamera implements BitmapProducer {
             public void onOpened(@NonNull CameraDevice camera) {
                 try {
                     mCaptureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-                    mCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, 0);
-                    mCaptureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps);
-                    mCaptureRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, CameraMetadata.NOISE_REDUCTION_MODE_HIGH_QUALITY);
+                    setCaptureRequestParameters();
                     mCaptureRequestBuilder.addTarget(mImageReader.getSurface());
                     camera.createCaptureSession(Arrays.asList(mImageReader.getSurface()), new CameraCaptureSession.StateCallback() {
                         @Override
                         public void onConfigured(@NonNull CameraCaptureSession session) {
-                            mCaptureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+                            //mCaptureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
                             try {
                                 session.setRepeatingRequest(mCaptureRequestBuilder.build(), null, null);
                             } catch (Exception e) {

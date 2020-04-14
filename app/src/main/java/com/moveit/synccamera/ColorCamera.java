@@ -4,10 +4,16 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.graphics.Rect;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraMetadata;
+import android.hardware.camera2.CaptureRequest;
 import android.media.ImageReader;
+import android.util.Log;
+import android.util.Range;
+
 import java.nio.ByteBuffer;
 
 public class ColorCamera extends AbstractCamera {
@@ -83,6 +89,30 @@ public class ColorCamera extends AbstractCamera {
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
     }
 
+    @Override
+    public void setCaptureRequestParameters() {
+        mCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, 0);
+        mCaptureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<Integer>(30, 30));
+        mCaptureRequestBuilder.set(CaptureRequest.NOISE_REDUCTION_MODE, CameraMetadata.NOISE_REDUCTION_MODE_HIGH_QUALITY);
+        mCaptureRequestBuilder.set(CaptureRequest.LENS_FOCAL_LENGTH, mFocalLengths[0]);
+
+        int w = mCameraActiveArraySize.right - mCameraActiveArraySize.left;
+        int h = mCameraActiveArraySize.bottom - mCameraActiveArraySize.top;
+
+        float zoomx = 0.97f;
+        float zoomy = 0.97f;
+
+        int w2 = (int) (w * zoomx);
+        int h2 = (int) (h * zoomy);
+        int l = (w - w2) / 2;
+        int r = (w + w2) / 2;
+        int t = (h - h2) / 2;
+        int b = (h + h2) / 2;
+
+        mCaptureRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION, new Rect(l, t, r, b));
+        mCaptureRequestBuilder.set(CaptureRequest.DISTORTION_CORRECTION_MODE, CaptureRequest.DISTORTION_CORRECTION_MODE_HIGH_QUALITY);
+    }
+
     public ColorCamera(Context context, int sizeIndex, int maxImages) {
         super(context, AbstractCamera.DEFAULT_FPS, sizeIndex, maxImages);
         startBackgroundThread();
@@ -92,6 +122,8 @@ public class ColorCamera extends AbstractCamera {
                 int[] capabilities = cameraCharacteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
                 assert capabilities != null;
                 boolean backFacing = cameraCharacteristics.get(CameraCharacteristics.LENS_FACING) == CameraMetadata.LENS_FACING_BACK;
+
+                float[] focus = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
                 boolean depthCamera = false;
                 boolean logicalMultiCamera = false;
                 for(int capability: capabilities) {
@@ -103,6 +135,10 @@ public class ColorCamera extends AbstractCamera {
                         mCameraID = cameraID;
                         mCameraRes = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.JPEG);
                         assert mCameraRes != null;
+                        mFocalLengths = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+                        mApertureSizes = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES);
+                        mIntrinsicCameraParameters = cameraCharacteristics.get(CameraCharacteristics.LENS_INTRINSIC_CALIBRATION);
+                        mCameraActiveArraySize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
                         mImageReader = ImageReader.newInstance(mCameraRes[mSizeIndex].getWidth(), mCameraRes[mSizeIndex].getHeight(), ImageFormat.JPEG, mMaxImages);
                     }
                 }
