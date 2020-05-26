@@ -10,10 +10,15 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.media.ImageReader;
 import android.util.Range;
+import android.util.Size;
+import android.util.SizeF;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
+
+import static java.lang.Math.acos;
+import static java.lang.Math.sin;
 
 public class DepthCamera extends AbstractCamera {
     private String TAG = "DepthCamera";
@@ -85,9 +90,16 @@ public class DepthCamera extends AbstractCamera {
                     mCameraID = cameraID;
                     mCameraRes = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.DEPTH16);
                     assert mCameraRes != null;
+                    float[] intrinsicCalibration = cameraCharacteristics.get(CameraCharacteristics.LENS_INTRINSIC_CALIBRATION);
+                    float[] poseRotationQuaternion = cameraCharacteristics.get(CameraCharacteristics.LENS_POSE_ROTATION);
+                    float[] poseTranslation = cameraCharacteristics.get(CameraCharacteristics.LENS_POSE_TRANSLATION);
+                    float[] lensDistortion = cameraCharacteristics.get(CameraCharacteristics.LENS_DISTORTION);
+                    int poseReference = cameraCharacteristics.get(CameraCharacteristics.LENS_POSE_REFERENCE);
+                    Size pixelArraySize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE);
+                    SizeF physicalSize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+                    mCameraCalibration = new CameraCalibrationMetadata(cameraID, intrinsicCalibration, poseRotationQuaternion, poseTranslation, lensDistortion, poseReference, pixelArraySize, physicalSize);
                     mFocalLengths = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
                     mApertureSizes = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES);
-                    mIntrinsicCameraParameters = cameraCharacteristics.get(CameraCharacteristics.LENS_INTRINSIC_CALIBRATION);
                     mCameraActiveArraySize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
                     mImageReader = ImageReader.newInstance(mCameraRes[mSizeIndex].getWidth(), mCameraRes[mSizeIndex].getHeight(), ImageFormat.DEPTH16, mMaxImages);
                 }

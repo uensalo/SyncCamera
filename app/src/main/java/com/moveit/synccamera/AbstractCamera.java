@@ -62,9 +62,9 @@ public abstract class AbstractCamera implements BitmapProducer {
 
     protected float[] mFocalLengths;
     protected float[] mApertureSizes;
-    protected float[] mIntrinsicCameraParameters;
     protected Rect mCameraActiveArraySize;
 
+    protected CameraCalibrationMetadata mCameraCalibration;
 
 
     public AbstractCamera(Context context, Range<Integer> fps, int sizeIndex, int maxImages) {
@@ -105,6 +105,10 @@ public abstract class AbstractCamera implements BitmapProducer {
         return mImageReader;
     }
 
+    public CameraCalibrationMetadata getCameraCalibration() {
+        return mCameraCalibration;
+    }
+
     @Override
     public void attachObserver(BitmapObserver o) {
         mBitmapObserverList.add(o);
@@ -113,6 +117,7 @@ public abstract class AbstractCamera implements BitmapProducer {
     public void detachObserver(BitmapObserver o) {
         mBitmapObserverList.remove(o);
     }
+
 
     protected void startBackgroundThread() {
         mHandlerThread = new HandlerThread("Background Thread");

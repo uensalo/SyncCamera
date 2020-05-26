@@ -13,7 +13,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
-
 import java.io.File;
 
 public class MainActivity extends AppCompatActivity implements BitmapObserver, ProgressObserver {
@@ -29,6 +28,11 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver, P
     private int mCurrentVideoIndex;
 
     private RGBDCaptureContext mCaptureContext;
+
+    private ColorCamera mColorCamera;
+    private KinectCamera mKinectCamera;
+
+    private SensorDataManager mSensorDataManager;
 
     private boolean saving;
 
@@ -84,7 +88,6 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver, P
         mDepthImageView = findViewById(R.id.depthImageView);
         mColorImageView = findViewById(R.id.colorImageView);
 
-
         mCaptureButton = findViewById(R.id.captureButton);
         mCaptureButton.setText("Tap to start capturing");
         mCaptureButton.setOnClickListener(new View.OnClickListener() {
@@ -97,37 +100,26 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver, P
                     saving = true;
                     Toast.makeText(getApplicationContext(), "Capture ended", Toast.LENGTH_SHORT);
                 } else {
-                    mCaptureContext.startCapture(mCurrentVideoIndex);
+                    mCaptureContext.startCapture(mCurrentVideoIndex, mColorCamera.getCameraCalibration(), mKinectCamera.getCameraCalibration());
                     mCaptureButton.setText("Capturing, tap to save.");
                     Toast.makeText(getApplicationContext(), "Capture Started", Toast.LENGTH_SHORT);
                 }
             }
         });
 
-        KinectCamera kinectCamera = new KinectCamera(this, DepthCamera.DEPTH_640_480, 2);
-        ColorCamera colorCamera = new ColorCamera(this, ColorCamera.RES_640x480, 2);
+        mKinectCamera = new KinectCamera(this, DepthCamera.DEPTH_640_480, 2);
+        mColorCamera = new ColorCamera(this, ColorCamera.RES_640x480, 2);
 
-        colorCamera.attachObserver(this);
-        colorCamera.openCamera();
+        mColorCamera.attachObserver(this);
+        mColorCamera.openCamera();
 
-        kinectCamera.attachObserver(this);
-        kinectCamera.openCamera();
-
-        Log.w("APP", "Color Camera: Horizontal Angle: " + colorCamera.getCameraFOV()[0] + ", Vertical Angle: " + colorCamera.getCameraFOV()[1]);
-        Log.w("APP", "Color camera id: " + colorCamera.getCameraID());
-        Log.w("APP", "Kinect Camera: Horizontal Angle: " + kinectCamera.getCameraFOV()[0] + ", Vertical Angle: " + kinectCamera.getCameraFOV()[1]);
-        Log.w("APP", "Kinect Camera id: " + kinectCamera.getCameraID());
-
-        for (float f : colorCamera.mIntrinsicCameraParameters) {
-            Log.w("APP", "Color Camera camera parameter: " + f);
-        }
-
-        for (float f : kinectCamera.mIntrinsicCameraParameters) {
-            Log.w("APP", "Kinect Camera camera parameter: " + f);
-        }
+        mKinectCamera.attachObserver(this);
+        mKinectCamera.openCamera();
 
         mCaptureContext = new RGBDCaptureContext(mVideoPath, Bitmap.CompressFormat.PNG, Bitmap.CompressFormat.PNG, 50, this);
         mCaptureContext.addObserver(this);
+
+        mSensorDataManager = new SensorDataManager(this);
     }
 
     @Override
@@ -142,6 +134,7 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver, P
             mCaptureContext.insertFrame(((BitmapDrawable) mColorImageView.getDrawable()).getBitmap(), ((BitmapDrawable) mDepthImageView.getDrawable()).getBitmap());
         } else if (context.getDataType() == BitmapDataType.COLOR) {
             mColorImageView.setImageBitmap(bitmap);
+            //Log.w("CAMPARAM", "" + listToString((context.getPoseReference())));
         }
     }
 
@@ -152,4 +145,13 @@ public class MainActivity extends AppCompatActivity implements BitmapObserver, P
         mCaptureButton.setEnabled(true);
         mCaptureButton.setText("Tap to start capturing");
     }
+
+    public String listToString(float[] fList) {
+        String str = "";
+        for (float f : fList) {
+            str = str + f + " ";
+        }
+        return str;
+    }
+
 }

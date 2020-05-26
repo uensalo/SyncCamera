@@ -5,6 +5,9 @@ import android.graphics.Bitmap;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -17,6 +20,7 @@ public class RGBDCaptureContext implements ProgressObserver, ProgressObservable 
     private File mVideoDirectory;
     private File mContextRGBDirectory;
     private File mContextDepthDirectory;
+    private File mContextMetadataDirectory;
 
     private List<Bitmap> mColorBitmaps;
     private List<Bitmap> mDepthBitmaps;
@@ -31,9 +35,12 @@ public class RGBDCaptureContext implements ProgressObserver, ProgressObservable 
     private volatile boolean[] mColorJobStatus;
     private volatile boolean[] mDepthJobStatus;
 
-    private List<ProgressObserver> observers;
+    private List<ProgressObserver> mObservers;
 
     private Activity mActivity;
+
+    private CameraCalibrationMetadata mColorCameraMetadata;
+    private CameraCalibrationMetadata mDepthCameraMetadata;
 
     public RGBDCaptureContext(String videosPath, Bitmap.CompressFormat colorCompressionFormat, Bitmap.CompressFormat depthCompressionFormat, int compressionRatio, Activity activity) {
         mCaptureState = false;
@@ -51,28 +58,33 @@ public class RGBDCaptureContext implements ProgressObserver, ProgressObservable 
 
         mActivity = activity;
 
-        observers = new ArrayList<>();
+        mObservers = new ArrayList<>();
     }
 
     @Override
     public void addObserver(ProgressObserver o) {
-        observers.add(o);
+        mObservers.add(o);
     }
 
     public boolean captureState() {
         return mCaptureState;
     }
 
-    public void startCapture(int videoIndex) {
+    public void startCapture(int videoIndex, CameraCalibrationMetadata colorCameraMetadata, CameraCalibrationMetadata depthCameraMetadata) {
         mVideoIndex = videoIndex;
         mCaptureState = true;
         mVideoDirectory = new File(mVideosPath + "/" + mVideoIndex);
         mContextRGBDirectory = new File(mVideosPath + "/" + mVideoIndex + "/rgb");
         mContextDepthDirectory = new File(mVideosPath + "/" + mVideoIndex + "/depth");
+        mContextMetadataDirectory = new File(mVideosPath + "/" + mVideoIndex + "/metadata");
+        mColorCameraMetadata = colorCameraMetadata;
+        mDepthCameraMetadata = depthCameraMetadata;
+
 
         mVideoDirectory.mkdir();
         mContextRGBDirectory.mkdir();
         mContextDepthDirectory.mkdir();
+        mContextMetadataDirectory.mkdir();
     }
 
     public void insertFrame(Bitmap colorBitmap, Bitmap depthBitmap) {
@@ -169,12 +181,61 @@ public class RGBDCaptureContext implements ProgressObserver, ProgressObservable 
                     bmp.recycle();
             }
             mDepthBitmaps = new ArrayList<>();
+
+            File colorMetadata = new File(mContextMetadataDirectory.getPath() + "/", "color.txt");
+            File depthMetadata = new File(mContextMetadataDirectory.getPath() + "/", "depth.txt");
+
+            try (FileOutputStream stream = new FileOutputStream(colorMetadata)) {
+                stream.write("Field Name|Schema|Units: Intrinsics|[fx, fy, cx, cy, s]|Pixels; Rotation|[x y z w]|Quaternion; Translation|[x y z]|mm; Distortion|[k1 k2 k3]|-; Reference|[Ref]|-; Pixel Array|[wxh]|Pixels; Sensor Size|[wxh]|mm;".getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(Arrays.toString(mColorCameraMetadata.getIntrinsicCalibration()).getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(Arrays.toString(mColorCameraMetadata.getExtrinsicRotation()).getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(Arrays.toString(mColorCameraMetadata.getExtrinsicTranslation()).getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(Arrays.toString(mColorCameraMetadata.getLensDistortion()).getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write((mColorCameraMetadata.getPoseReference() + "").getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(mColorCameraMetadata.getPixelArraySize().toString().getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(mColorCameraMetadata.getPhysicalSize().toString().getBytes());
+                stream.flush();
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            try (FileOutputStream stream = new FileOutputStream(depthMetadata)) {
+                stream.write("Field Name|Schema|Units: Intrinsics|[fx, fy, cx, cy, s]|Pixels; Rotation|[x y z w]|Quaternion; Translation|[x y z]|mm; Distortion|[k1 k2 k3]|-; Reference|[Ref]|-; Pixel Array|[wxh]|Pixels; Sensor Size|[wxh]|mm;".getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(Arrays.toString(mDepthCameraMetadata.getIntrinsicCalibration()).getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(Arrays.toString(mDepthCameraMetadata.getExtrinsicRotation()).getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(Arrays.toString(mDepthCameraMetadata.getExtrinsicTranslation()).getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(Arrays.toString(mDepthCameraMetadata.getLensDistortion()).getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write((mDepthCameraMetadata.getPoseReference() + "").getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(mDepthCameraMetadata.getPixelArraySize().toString().getBytes());
+                stream.write(System.getProperty("line.separator").getBytes());
+                stream.write(mDepthCameraMetadata.getPhysicalSize().toString().getBytes());
+                stream.flush();
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
     @Override
     public void notifyObservers() {
-        for (ProgressObserver o : observers) {
+        for (ProgressObserver o : mObservers) {
             o.onComplete(-1);
         }
     }

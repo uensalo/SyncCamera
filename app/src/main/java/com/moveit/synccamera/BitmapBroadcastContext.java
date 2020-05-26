@@ -8,12 +8,11 @@ public class BitmapBroadcastContext {
         mCameraID = cameraID;
         mDataType = dataType;
     }
-
     public String getCameraID() {
         return mCameraID;
     }
-
     public BitmapDataType getDataType() {
         return mDataType;
     }
+
 }
